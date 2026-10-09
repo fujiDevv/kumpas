@@ -1,0 +1,43 @@
+{
+  "name": "kumpas",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.5.1",
+  "dependencies": {
+    "@cloudflare/workers-response-store": "^1.0.1",
+    "@mediapipe/tasks-vision": "0.10.32",
+    "@vinext/cloudflare": "^1.0.1",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-server-dom-webpack": "^19.3.0",
+    "vinext": "^1.0.1"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "2.0.0-beta.sha-52b0dc0e9",
+    "@tailwindcss/postcss": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "^6.1.2",
+    "@vitejs/plugin-rsc": "^0.5.36",
+    "cf": "1.0.0-beta.13",
+    "fake-indexeddb": "^6.2.5",
+    "prettier": "^3.9.9",
+    "tailwindcss": "latest",
+    "typescript": "latest",
+    "vite": "8.3.0",
+    "vitest": "^5.0.3"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "pnpm verify:assets && vite build && node scripts/offline-manifest.mjs",
+    "start": "vite preview",
+    "deploy": "vinext-cloudflare deploy --warm-cache",
+    "deploy:response-store": "cf deploy --prebuilt --mode production --worker kumpas-response-store",
+    "prepare:model": "node scripts/prepare-model.mjs",
+    "verify:assets": "node scripts/verify-assets.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts"
+  }
+}

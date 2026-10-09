@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>Kumpas offline diagnostics</title
+  ><style>
+    body {
+      font: 14px/1.7 system-ui;
+      margin: 32px;
+      max-width: 1000px;
+    }
+    button {
+      padding: 12px 20px;
+    }
+    pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      background: #f4f4f4;
+      padding: 20px;
+    }
+  </style>
+  <h1>Offline asset diagnostics</h1>
+  <p>
+    This developer page reads only application caches and service worker status.
+    It does not access recordings or camera data.
+  </p>
+  <button id="check">Inspect offline cache</button
+  ><button id="model">Run local inference check</button>
+  <pre id="output">Press Inspect offline cache.</pre>
+  <script>
+    model.onclick = async () => {
+      const worker = new Worker("/hand-worker.js");
+      output.textContent = "Initializing actual MediaPipe model…";
+      const timeout = setTimeout(() => {
+        worker.terminate();
+        output.textContent = "Inference check timed out.";
+      }, 30000);
+      worker.onmessage = ({ data }) => {
+        if (data.type === "ready") worker.postMessage({ type: "check" });
+        if (data.type === "checked") {
+          clearTimeout(timeout);
+          worker.terminate();
+          output.textContent =
+            data.hands === 0
+              ? "PASS: actual local model initialized and processed a blank frame. Zero hands returned. This checks runtime operation, not gesture accuracy."
+              : "FAIL: unexpected hand on blank frame.";
+        }
+        if (data.type === "error") {
+          clearTimeout(timeout);
+          worker.terminate();
+          output.textContent = "FAIL: " + data.message;
+        }
+      };
+      worker.onerror = () => {
+        clearTimeout(timeout);
+        worker.terminate();
+        output.textContent = "FAIL: could not load local inference worker.";
+      };
+      worker.postMessage({ type: "init" });
+    };
+    check.onclick = async () => {
+      try {
+        const registration = await navigator.serviceWorker.getRegistration();
+        const result = {
+          controller: navigator.serviceWorker.controller?.scriptURL,
+          active: registration?.active?.state,
+          waiting: registration?.waiting?.state,
+          caches: [],
+        };
+        for (const name of await caches.keys()) {
+          if (!name.startsWith("kumpas-")) continue;
+          const cache = await caches.open(name),
+            requests = await cache.keys(),
+            files = [];
+          for (const request of requests) {
+            const direct = await cache.match(request),
+              simple = await cache.match(new URL(request.url).pathname),
+              ignore = await cache.match(new URL(request.url).pathname, {
+                ignoreVary: true,
+              });
+            files.push({
+              url: new URL(request.url).pathname,
+              stored: !!direct,
+              simpleMatch: !!simple,
+              ignoreVaryMatch: !!ignore,
+              vary: direct?.headers.get("vary"),
+              type: direct?.headers.get("content-type"),
+            });
+          }
+          result.caches.push({ name, files });
+        }
+        output.textContent = JSON.stringify(result, null, 2);
+      } catch (e) {
+        output.textContent = e.message;
+      }
+    };
+  </script>
+</html>
