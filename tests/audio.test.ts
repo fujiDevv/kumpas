@@ -47,3 +47,41 @@ it("cleans resources when autoplay is rejected", async () => {
   );
   expect(URL.revokeObjectURL).toHaveBeenCalled();
 });
+
+it("reports late decode errors separately from successful completion", async () => {
+  const p = new PhrasePlayer(),
+    ended = vi.fn(),
+    error = vi.fn();
+  await p.play(new Blob(["bad clip"]), ended, error);
+  FakeAudio.instances[0].onerror?.();
+  expect(ended).not.toHaveBeenCalled();
+  expect(error).toHaveBeenCalledOnce();
+  expect(URL.revokeObjectURL).toHaveBeenCalledOnce();
+});
+it("returns false when playback is cancelled while play is pending", async () => {
+  let resolve!: () => void;
+  const p = new PhrasePlayer();
+  class PendingAudio extends FakeAudio {
+    play = vi.fn(
+      () =>
+        new Promise<void>((r) => {
+          resolve = r;
+        }),
+    );
+  }
+  vi.stubGlobal("Audio", PendingAudio);
+  const pending = p.play(new Blob(["clip"]), vi.fn());
+  p.stop();
+  resolve();
+  expect(await pending).toBe(false);
+});
+it("suppresses late errors belonging to older playback", async () => {
+  const p = new PhrasePlayer(),
+    error = vi.fn();
+  await p.play(new Blob(["a"]), vi.fn(), error);
+  const stale = FakeAudio.instances[0].onerror;
+  await p.play(new Blob(["b"]), vi.fn(), error);
+  stale?.();
+  expect(error).not.toHaveBeenCalled();
+  expect(FakeAudio.instances[1].pause).not.toHaveBeenCalled();
+});

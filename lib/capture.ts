@@ -21,7 +21,7 @@ export function collectFrame(
   f: number[] | null,
   now: number,
 ): Capture {
-  if (!f) return emptyCapture();
+  if (!f || !Number.isFinite(distance(f, f))) return emptyCapture();
   if (
     !state.anchor ||
     now - state.at > 350 ||

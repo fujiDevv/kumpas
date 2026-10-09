@@ -54,17 +54,27 @@ export default function Kumpas() {
     void refresh();
     const update = () => setOnline(navigator.onLine);
     update();
+    const visibility = () => {
+      if (document.hidden) {
+        stopSpeech();
+        setStatus("Recognition is paused while this tab is hidden.");
+      }
+    };
+    document.addEventListener("visibilitychange", visibility);
     window.addEventListener("online", update);
     window.addEventListener("offline", update);
     return () => {
       mounted.current = false;
       player.current.stop();
+      document.removeEventListener("visibilitychange", visibility);
       window.removeEventListener("online", update);
       window.removeEventListener("offline", update);
     };
   }, []);
   useEffect(() => {
     if (draft) {
+      steadyPose.current = emptyCapture();
+      activation.current = initialActivation();
       player.current.stop();
       speechGeneration.current++;
       isSpeaking.current = false;
@@ -72,6 +82,7 @@ export default function Kumpas() {
     }
   }, [draft]);
   function stopSpeech() {
+    steadyPose.current = emptyCapture();
     speechGeneration.current++;
     player.current.stop();
     isSpeaking.current = false;
@@ -97,31 +108,46 @@ export default function Kumpas() {
     setStatus("Speaking in a familiar voice.");
     setSpeaking(true);
     isSpeaking.current = true;
+    const playbackError = () => {
+      if (!mounted.current || generation !== speechGeneration.current) return;
+      isSpeaking.current = false;
+      setSpeaking(false);
+      setActive(null);
+      setError(
+        "Audio could not play. Check your speaker, then press a phrase button to enable sound.",
+      );
+      activation.current = waitForRelease(performance.now());
+      setStatus("Audio needs your attention.");
+    };
     try {
-      await player.current.play(p.audio, () => {
-        if (mounted.current && generation === speechGeneration.current) {
-          isSpeaking.current = false;
-          setSpeaking(false);
-          setActive(null);
-          activation.current = waitForRelease(performance.now());
-          setStatus("Relax your hand before the next phrase.");
-        }
-      });
-      setSoundEnabled(true);
-    } catch {
-      if (mounted.current && generation === speechGeneration.current) {
-        isSpeaking.current = false;
-        setSpeaking(false);
-        setError(
-          "Audio could not play. Check your speaker, then press a phrase button to enable sound.",
-        );
-        activation.current = waitForRelease(performance.now());
-        setStatus("Audio needs your attention.");
+      const started = await player.current.play(
+        p.audio,
+        () => {
+          if (mounted.current && generation === speechGeneration.current) {
+            isSpeaking.current = false;
+            setSpeaking(false);
+            setActive(null);
+            activation.current = waitForRelease(performance.now());
+            setStatus("Relax your hand before the next phrase.");
+          }
+        },
+        playbackError,
+      );
+      if (
+        started &&
+        mounted.current &&
+        generation === speechGeneration.current
+      ) {
+        setSoundEnabled(true);
+        setError("");
       }
+    } catch {
+      playbackError();
     }
   }
+
   function observe(o: Observation) {
-    if (isSpeaking.current) return;
+    if (isSpeaking.current || document.hidden) return;
     const result = o ? predict(o.features, o.hand, phrases) : null;
     const now = performance.now();
     steadyPose.current = collectFrame(

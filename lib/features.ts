@@ -7,6 +7,8 @@ export function features(
 ): number[] | null {
   if (
     points.length !== 21 ||
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
     width <= 0 ||
     height <= 0 ||
     points.some(

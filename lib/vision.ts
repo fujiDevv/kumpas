@@ -22,12 +22,15 @@ export async function startVision(
     busy = false,
     lastFrame = -1,
     lastTime = 0;
+  let frameTimeout: ReturnType<typeof setTimeout> | undefined;
   const stop = () => {
     stopped = true;
     cancelAnimationFrame(raf);
+    clearTimeout(frameTimeout);
     worker?.terminate();
     stream.getTracks().forEach((t) => t.stop());
     if (video.srcObject === stream) video.srcObject = null;
+    signal?.removeEventListener("abort", stop);
   };
   signal?.addEventListener("abort", stop, { once: true });
   try {
@@ -38,38 +41,54 @@ export async function startVision(
     onStatus("Loading the local hand model…");
     worker = new Worker("/hand-worker.js");
     await new Promise<void>((resolve, reject) => {
+      const finish = (error?: Error) => {
+        clearTimeout(timeout);
+        signal?.removeEventListener("abort", abort);
+        if (error) reject(error);
+        else resolve();
+      };
+      const abort = () =>
+        finish(new DOMException("Camera startup canceled.", "AbortError"));
       const timeout = setTimeout(
         () =>
-          reject(
+          finish(
             new Error(
               "Model setup timed out. Run pnpm prepare:model, then try again.",
             ),
           ),
         30000,
       );
-      worker!.onerror = () => {
-        clearTimeout(timeout);
-        reject(
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) {
+        abort();
+        return;
+      }
+      worker!.onerror = () =>
+        finish(
           new Error(
             "The local vision worker could not start. Try desktop Chrome or Edge.",
           ),
         );
-      };
       worker!.onmessage = ({ data }) => {
-        if (data.type === "ready") {
-          clearTimeout(timeout);
-          resolve();
-        }
-        if (data.type === "error") {
-          clearTimeout(timeout);
-          reject(new Error(data.message));
-        }
+        if (data.type === "ready") finish();
+        if (data.type === "error") finish(new Error(data.message));
       };
-      worker!.postMessage({ type: "init" });
+      try {
+        worker!.postMessage({ type: "init" });
+      } catch (error) {
+        finish(
+          error instanceof Error
+            ? error
+            : new Error("Could not start the vision worker."),
+        );
+      }
     });
+    if (stopped)
+      throw new DOMException("Camera startup canceled.", "AbortError");
     worker.onmessage = ({ data }) => {
       if (stopped) return;
       busy = false;
+      clearTimeout(frameTimeout);
       if (data.type === "error") {
         onError(data.message);
         stop();
@@ -78,6 +97,7 @@ export async function startVision(
       if (data.type !== "result") return;
       const points = data.points as Point[][];
       if (
+        document.hidden ||
         points.length !== 1 ||
         performance.now() - data.timestamp > 350 ||
         points[0].some(
@@ -119,6 +139,12 @@ export async function startVision(
           frame.close();
           return;
         }
+        frameTimeout = setTimeout(() => {
+          if (stopped) return;
+          onObservation(null);
+          onError("The camera model stopped responding. Restart the camera.");
+          stop();
+        }, 5000);
         worker!.postMessage(
           { type: "frame", frame, timestamp: performance.now() },
           [frame],
@@ -144,9 +170,10 @@ export async function startVision(
 /** Exercise real model initialization without requesting camera access. */
 export async function verifyLocalModel(): Promise<void> {
   const worker = new Worker("/hand-worker.js");
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(
+      timer = setTimeout(
         () => reject(new Error("Local model check timed out.")),
         30000,
       );
@@ -180,6 +207,7 @@ export async function verifyLocalModel(): Promise<void> {
       worker.postMessage({ type: "init" });
     });
   } finally {
+    clearTimeout(timer);
     worker.terminate();
   }
 }

@@ -1,3 +1,4 @@
+import { waitForWorker, withTimeout } from "./worker-state";
 import { verifyLocalModel } from "./vision";
 export async function prepareOffline(
   onProgress: (text: string) => void,
@@ -8,67 +9,19 @@ export async function prepareOffline(
     );
   const registration = await navigator.serviceWorker.register("/sw.js");
   await registration.update();
-  if (registration.installing) {
-    await new Promise<void>((resolve, reject) => {
-      const installing = registration.installing!;
-      const timer = setTimeout(
-        () => reject(new Error("App update timed out. Reload and retry.")),
-        20000,
-      );
-      const check = () => {
-        if (
-          installing.state === "installed" ||
-          installing.state === "activated"
-        ) {
-          clearTimeout(timer);
-          resolve();
-        } else if (installing.state === "redundant") {
-          clearTimeout(timer);
-          reject(new Error("App update failed. Reload and retry."));
-        }
-      };
-      installing.addEventListener("statechange", check);
-      check();
-    });
-  }
+  if (registration.installing)
+    await waitForWorker(registration.installing, ["installed", "activated"]);
   if (registration.waiting) {
     onProgress("Activating the updated offline app…");
     const waiting = registration.waiting;
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(
-        () =>
-          reject(
-            new Error(
-              "Offline update timed out. Close other Kumpas tabs and retry.",
-            ),
-          ),
-        20000,
-      );
-      const check = () => {
-        if (waiting.state === "activated") {
-          clearTimeout(timer);
-          resolve();
-        }
-      };
-      waiting.addEventListener("statechange", check);
-      waiting.postMessage({ type: "activate" });
-      check();
-    });
+    waiting.postMessage({ type: "activate" });
+    await waitForWorker(waiting, ["activated"]);
   }
-  const ready = await Promise.race([
+  const ready = await withTimeout(
     navigator.serviceWorker.ready,
-    new Promise<never>((_, reject) =>
-      setTimeout(
-        () =>
-          reject(
-            new Error(
-              "Offline worker setup timed out. Use the production preview.",
-            ),
-          ),
-        20000,
-      ),
-    ),
-  ]);
+    20000,
+    "Offline worker setup timed out. Use the production preview.",
+  );
   const worker = ready.active;
   if (!worker)
     throw new Error("Offline worker is not active yet. Reload and try again.");
@@ -92,7 +45,14 @@ export async function prepareOffline(
       if (data.type === "ready") resolve();
       else reject(new Error(data.message));
     };
-    worker.postMessage({ type: "prepare" }, [channel.port2]);
+    try {
+      worker.postMessage({ type: "prepare" }, [channel.port2]);
+    } catch (error) {
+      clearTimeout(timer);
+      channel.port1.close();
+      channel.port2.close();
+      reject(error);
+    }
   });
   onProgress("Checking the local hand model…");
   await verifyLocalModel();

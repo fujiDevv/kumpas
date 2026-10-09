@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { predict, calibrate, overlaps } from "../lib/classifier";
+import {
+  predict,
+  calibrate,
+  overlaps,
+  negativesPreserveGesture,
+} from "../lib/classifier";
 import type { Phrase } from "../lib/types";
 import { phrase } from "./fixtures";
 
@@ -101,5 +106,18 @@ describe("multiple-phrase enrollment", () => {
       b = phrase("b", 0.005);
     expect(overlaps(a, [b])).toBe(true);
     expect(overlaps(b, [a])).toBe(true);
+  });
+});
+
+describe("negative enrollment safety", () => {
+  it("does not let a relaxed pose disable the enrolled gesture", () => {
+    const p = phrase();
+    expect(negativesPreserveGesture(p, [Array(63).fill(0.005)])).toBe(false);
+    expect(negativesPreserveGesture(p, [Array(63).fill(1)])).toBe(true);
+    expect(
+      negativesPreserveGesture({ ...p, negatives: [Array(63).fill(0.005)] }, [
+        Array(63).fill(0.005),
+      ]),
+    ).toBe(false);
   });
 });

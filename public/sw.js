@@ -57,10 +57,24 @@ self.addEventListener("message", (event) => {
       }
       await cache.put("/__offline-ready", new Response("ready"));
       // Old builds are removed only after all assets of the new build are saved.
-      if ((await self.clients.matchAll({ type: "window" })).length <= 1)
+      if ((await self.clients.matchAll({ type: "window" })).length <= 1) {
+        const previous = [];
         for (const name of await caches.keys())
-          if (name.startsWith("kumpas-") && name !== CACHE)
+          if (
+            name.startsWith("kumpas-") &&
+            name !== CACHE &&
+            (await (await caches.open(name)).match("/__offline-ready"))
+          )
+            previous.push(name);
+        // Keep one complete previous build for clients still running its code.
+        for (const name of await caches.keys())
+          if (
+            name.startsWith("kumpas-") &&
+            name !== CACHE &&
+            name !== previous.at(-1)
+          )
             await caches.delete(name);
+      }
       port.postMessage({ type: "ready" });
     })().catch((e) => port.postMessage({ type: "error", message: e.message })),
   );
@@ -78,15 +92,32 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     (async () => {
       const cache = await caches.open(CACHE);
-      if (!(await cache.match("/__offline-ready"))) return fetch(request);
-      if (request.mode === "navigate") {
-        try {
-          return await fetch(request);
-        } catch {
-          return (
-            (await cache.match(url.pathname, { ignoreVary: true })) ||
-            Response.error()
+      const currentReady = await cache.match("/__offline-ready");
+      const fallback = async () => {
+        if (request.headers.get("RSC") === "1") return undefined;
+        const names = currentReady
+          ? [CACHE]
+          : (await caches.keys())
+              .filter((name) => name.startsWith("kumpas-") && name !== CACHE)
+              .reverse();
+        for (const name of names) {
+          const saved = await caches.open(name);
+          if (!(await saved.match("/__offline-ready"))) continue;
+          const response = await saved.match(
+            request.mode === "navigate" ? url.pathname : request,
+            { ignoreVary: true },
           );
+          if (response) return response;
+        }
+      };
+      if (!currentReady || request.mode === "navigate") {
+        try {
+          const response = await fetch(request);
+          return response.status >= 500
+            ? (await fallback()) || response
+            : response;
+        } catch {
+          return (await fallback()) || Response.error();
         }
       }
       // Public build assets are identical for this origin. Module/stylesheet

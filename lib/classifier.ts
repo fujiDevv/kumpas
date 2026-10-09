@@ -92,3 +92,26 @@ export function overlaps(candidate: Phrase, others: Phrase[]): boolean {
     (p) => conflicts(candidate, p) || conflicts(p, candidate),
   );
 }
+
+/** A neutral example must not disable any previously accepted positive attempt. */
+export function negativesPreserveGesture(
+  phrase: Phrase,
+  negatives: number[][],
+): boolean {
+  const baseline = { ...phrase, negatives: [] };
+  const updated = { ...phrase, negatives };
+  const sessions = [...new Set(phrase.examples.map((e) => e.session))];
+  return sessions.every((session) => {
+    const accepted = phrase.examples.filter(
+      (e) =>
+        e.session === session &&
+        predict(e.features, phrase.hand, [baseline])?.id === phrase.id,
+    );
+    return (
+      accepted.length > 0 &&
+      accepted.every(
+        (e) => predict(e.features, phrase.hand, [updated])?.id === phrase.id,
+      )
+    );
+  });
+}

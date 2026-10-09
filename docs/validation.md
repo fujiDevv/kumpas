@@ -5,7 +5,7 @@ Checked October 9, 2026 on the local production preview at `http://127.0.0.1:417
 ## Passed checks
 
 - `pnpm typecheck`: no TypeScript errors.
-- `pnpm test`: 31 tests across six files pass. These cover feature normalization, unknown/ambiguous-class rejection, hold/release activation, audio resource cleanup, and atomic IndexedDB behavior. Classifier fixtures are synthetic; they do not measure personal gesture accuracy.
+- `pnpm test`: 50 tests across ten files pass. These cover feature normalization, unknown/ambiguous-class rejection, hold/release activation, audio resource cleanup, and atomic IndexedDB behavior. Classifier fixtures are synthetic; they do not measure personal gesture accuracy.
 - `pnpm verify:assets`: local model/runtime hashes and byte sizes match the recorded manifest.
 - `pnpm build`: production Cloudflare/Vinext build completes and generates a versioned offline asset manifest.
 - Browser workspace and phrase-to-recording-step navigation work.
@@ -49,3 +49,9 @@ To accept the correction, reteach distinct poses such as open palm, fist, and in
 The overlap check previously compared leave-session-out distances with runtime distances, incorrectly rejecting some poses that communication could distinguish. It now uses the runtime classifier on both classes and requires conflicts in at least half of usable examples in two separate attempts. The existing live fresh-pose check remains required. Collision messages identify the conflicting phrase.
 
 Type checking and all 31 automated tests pass. Added cases cover distinguishable second phrases with attempt variation, a conflict isolated to one attempt, and persistent collisions in both enrollment orders. This correction keeps feature version 2; existing version 2 gestures do not need reteaching. Real-camera confirmation of the user's second pose remains pending.
+
+## Bug audit — October 10, 2026
+
+Type checking, all 50 tests across ten files, and the production build pass after the audit. New regression coverage exercises late playback errors and cancellation, recorder flush duration and failure cleanup, negative examples poisoning positives, concurrent conflicting saves, uneven enrollment attempts, service-worker readiness cleanup, incomplete-cache fallback, HTTP 503 fallback, camera initialization cancellation, and stalled frame processing. See [bug audit](bug-audit.md).
+
+These checks use mocked browser resources for lifecycle failures and synthetic pose geometry. The audit did not start a background server or request camera/microphone access. End-to-end real-device recognition and audio acceptance remain pending.

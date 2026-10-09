@@ -15,22 +15,35 @@ export class PhrasePlayer {
       this.url = null;
     }
   }
-  async play(blob: Blob, onEnd: () => void) {
+  async play(
+    blob: Blob,
+    onEnd: () => void,
+    onError: (error: Error) => void = () => {},
+  ) {
     this.stop();
     const generation = this.generation;
+    let completed = false;
+    let failure: Error | null = null;
     this.url = URL.createObjectURL(blob);
     this.audio = new Audio(this.url);
-    const done = () => {
-      if (generation === this.generation) {
-        this.stop();
-        onEnd();
-      }
+    this.audio.onended = () => {
+      if (generation !== this.generation) return;
+      completed = true;
+      this.stop();
+      onEnd();
     };
-    this.audio.onended = done;
-    this.audio.onerror = done;
+    this.audio.onerror = () => {
+      if (generation !== this.generation) return;
+      failure = new Error("The recording could not be decoded or played.");
+      this.stop();
+      onError(failure);
+    };
     try {
       await this.audio.play();
+      if (failure) throw failure;
+      return completed || generation === this.generation;
     } catch (e) {
+      if (generation !== this.generation && !failure) return false;
       if (generation === this.generation) this.stop();
       throw e;
     }
@@ -61,11 +74,13 @@ export async function recordVoice(
   const chunks: Blob[] = [];
   const start = performance.now();
   let canceled = false;
+  let stoppedAt: number | undefined;
   const close = () => {
     stream.getTracks().forEach((t) => t.stop());
     clearTimeout(timeout);
   };
   const stop = () => {
+    stoppedAt ??= performance.now();
     if (recorder.state !== "inactive") recorder.stop();
     close();
   };
@@ -76,13 +91,13 @@ export async function recordVoice(
     close();
     if (!canceled) {
       const blob = new Blob(chunks, { type: recorder.mimeType });
-      if (blob.size) onStop(blob, performance.now() - start);
+      if (blob.size) onStop(blob, (stoppedAt ?? performance.now()) - start);
       else onError("No audio was recorded. Please try again.");
     }
   };
   recorder.onerror = () => {
     canceled = true;
-    close();
+    stop();
     onError("Recording stopped unexpectedly. Please try again.");
   };
   const timeout = setTimeout(stop, 8000);

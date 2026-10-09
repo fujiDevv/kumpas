@@ -2,7 +2,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera } from "./camera";
 import { PhrasePlayer, recordVoice } from "../lib/audio";
-import { calibrate, overlaps, predict, MIN_MARGIN } from "../lib/classifier";
+import {
+  calibrate,
+  overlaps,
+  predict,
+  MIN_MARGIN,
+  negativesPreserveGesture,
+} from "../lib/classifier";
 import {
   FEATURE_VERSION,
   type Example,
@@ -51,7 +57,8 @@ export function Enrollment({
     attemptRef = useRef(0),
     started = useRef(0),
     captureState = useRef(emptyCapture()),
-    negativeState = useRef(emptyCapture());
+    negativeState = useRef(emptyCapture()),
+    positiveState = useRef(emptyCapture());
   const released = useRef(true),
     releaseSince = useRef(0),
     testSince = useRef(0),
@@ -80,6 +87,12 @@ export function Enrollment({
   });
   const others = phrases.filter((p) => p.id !== existing?.id);
   function observe(o: Observation) {
+    if (document.hidden) {
+      captureState.current = emptyCapture();
+      positiveState.current = emptyCapture();
+      negativeState.current = emptyCapture();
+      return;
+    }
     const now = performance.now(),
       gap = now - lastObs.current > 350;
     lastObs.current = now;
@@ -155,6 +168,7 @@ export function Enrollment({
       }
     } else if (candidate && !tested) {
       if (!released.current) {
+        positiveState.current = emptyCapture();
         testSince.current = 0;
         return;
       }
@@ -163,7 +177,12 @@ export function Enrollment({
         o.hand === hand &&
         predict(o.features, o.hand, [candidate, ...others])?.id === candidate.id
       ) {
-        if (!testSince.current || gap) testSince.current = now;
+        positiveState.current = collectFrame(
+          positiveState.current,
+          o.features,
+          now,
+        );
+        testSince.current = positiveState.current.since;
         setMessage("That’s your pose. Keep holding…");
         if (now - testSince.current >= 700) {
           setTested(true);
@@ -172,6 +191,7 @@ export function Enrollment({
           );
         }
       } else {
+        positiveState.current = emptyCapture();
         testSince.current = 0;
         setMessage("Repeat your chosen pose for a fresh test.");
       }
@@ -182,10 +202,22 @@ export function Enrollment({
       // A missing hand proves release, but cannot test unknown-pose rejection.
       negativeState.current = collectFrame(
         negativeState.current,
-        o?.hand === hand && !match ? o.features : null,
+        o?.hand === hand &&
+          ![candidate, ...others].some((p) => predict(o.features, o.hand, [p]))
+          ? o.features
+          : null,
         now,
       );
       if (negativeState.current.samples.length >= 8) {
+        if (
+          !negativesPreserveGesture(candidate, negativeState.current.samples)
+        ) {
+          negativeState.current = emptyCapture();
+          setMessage(
+            "That relaxed pose is too close to your gesture. Try a clearly different finger shape for this check.",
+          );
+          return;
+        }
         setCandidate({
           ...candidate,
           negatives: negativeState.current.samples,
@@ -244,6 +276,7 @@ export function Enrollment({
     setTested(false);
     setNeutral(false);
     testSince.current = 0;
+    positiveState.current = emptyCapture();
     negativeState.current = emptyCapture();
     captureState.current = emptyCapture();
     released.current = true;
@@ -277,14 +310,25 @@ export function Enrollment({
       recorder.current = r;
       setRecording(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Microphone unavailable.");
+      if (mounted.current)
+        setError(e instanceof Error ? e.message : "Microphone unavailable.");
     } finally {
       if (mounted.current) setRequesting(false);
     }
   }
   async function preview() {
     try {
-      await player.current.play(audio!, () => {});
+      const started = await player.current.play(
+        audio!,
+        () => {},
+        () => {
+          if (mounted.current)
+            setError(
+              "Audio could not play. Check the speaker and record again.",
+            );
+        },
+      );
+      if (!started) throw new Error("Playback canceled.");
     } catch (e) {
       setError("Audio could not play. Check the speaker and record again.");
       throw e;
@@ -433,7 +477,7 @@ export function Enrollment({
                 try {
                   await preview();
                   player.current.stop();
-                  setStep(2);
+                  if (mounted.current) setStep(2);
                 } catch {
                   setError("Please record a playable clip.");
                 }
