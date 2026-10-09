@@ -284,6 +284,12 @@ main {
   background: #262626;
   overflow: hidden;
 }
+.check-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 14px;
+  color: #98452a;
+}
 .camera-frame video,
 .camera-frame canvas {
   position: absolute;

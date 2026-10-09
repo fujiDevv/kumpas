@@ -110,6 +110,14 @@ describe("multiple-phrase enrollment", () => {
 });
 
 describe("negative enrollment safety", () => {
+  it("protects the fresh live test even when stored training examples remain accepted", () => {
+    const p = phrase();
+    const fresh = Array(63).fill(0.06);
+    const negatives = [Array(63).fill(0.075)];
+    expect(predict(fresh, "Right", [p])?.id).toBe(p.id);
+    expect(negativesPreserveGesture(p, negatives)).toBe(true);
+    expect(negativesPreserveGesture(p, negatives, [fresh])).toBe(false);
+  });
   it("does not let a relaxed pose disable the enrolled gesture", () => {
     const p = phrase();
     expect(negativesPreserveGesture(p, [Array(63).fill(0.005)])).toBe(false);

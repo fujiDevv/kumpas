@@ -42,30 +42,60 @@ export function calibrate(examples: Example[]): number {
     );
   return Math.min(MAX_DISTANCE, Math.max(0.025, q95 * 1.35 + 0.01));
 }
-export function predict(
+export type MatchReason =
+  | "matched"
+  | "no-phrases"
+  | "reteach"
+  | "wrong-hand"
+  | "different-pose"
+  | "ambiguous"
+  | "relaxed-pose";
+export function inspectPose(
   f: number[],
   hand: Hand,
   phrases: Phrase[],
-): Prediction {
+): { prediction: Prediction; reason: MatchReason } {
   const ranked = phrases
     .filter((p) => p.hand === hand && p.featureVersion === FEATURE_VERSION)
     .map((p) => ({ phrase: p, d: classDistance(f, p.examples) }))
     .sort((a, b) => a.d - b.d);
-  if (!ranked.length) return null;
+  if (!ranked.length)
+    return {
+      prediction: null,
+      reason: !phrases.length
+        ? "no-phrases"
+        : !phrases.some((p) => p.featureVersion === FEATURE_VERSION)
+          ? "reteach"
+          : "wrong-hand",
+    };
   const best = ranked[0],
     runner = ranked[1]?.d ?? Infinity;
   const margin = runner - best.d;
   if (
     !Number.isFinite(best.d) ||
-    best.d > Math.min(best.phrase.maxDistance, MAX_DISTANCE) ||
+    best.d > Math.min(best.phrase.maxDistance, MAX_DISTANCE)
+  )
+    return { prediction: null, reason: "different-pose" };
+  if (
     margin < Math.max(best.phrase.minMargin, MIN_MARGIN) ||
     (Number.isFinite(runner) && best.d > runner * 0.8)
   )
-    return null;
+    return { prediction: null, reason: "ambiguous" };
   const negatives = best.phrase.negatives ?? [];
   const negativeDistance = Math.min(...negatives.map((n) => distance(f, n)));
-  if (negativeDistance <= best.d + 0.015) return null;
-  return { id: best.phrase.id, distance: best.d, margin };
+  if (negativeDistance <= best.d + 0.015)
+    return { prediction: null, reason: "relaxed-pose" };
+  return {
+    prediction: { id: best.phrase.id, distance: best.d, margin },
+    reason: "matched",
+  };
+}
+export function predict(
+  f: number[],
+  hand: Hand,
+  phrases: Phrase[],
+): Prediction {
+  return inspectPose(f, hand, phrases).prediction;
 }
 /** Use the same classifier as communication. A collision must persist across attempts. */
 export function overlaps(candidate: Phrase, others: Phrase[]): boolean {
@@ -97,9 +127,16 @@ export function overlaps(candidate: Phrase, others: Phrase[]): boolean {
 export function negativesPreserveGesture(
   phrase: Phrase,
   negatives: number[][],
+  testedFeatures: number[][] = [],
 ): boolean {
   const baseline = { ...phrase, negatives: [] };
   const updated = { ...phrase, negatives };
+  if (
+    testedFeatures.some(
+      (f) => predict(f, phrase.hand, [updated])?.id !== phrase.id,
+    )
+  )
+    return false;
   const sessions = [...new Set(phrase.examples.map((e) => e.session))];
   return sessions.every((session) => {
     const accepted = phrase.examples.filter(

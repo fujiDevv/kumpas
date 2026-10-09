@@ -3,9 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { Camera } from "./camera";
 import { Enrollment } from "./enrollment";
 import { PhrasePlayer } from "../lib/audio";
-import { advance, initialActivation, waitForRelease } from "../lib/activation";
-import { collectFrame, emptyCapture } from "../lib/capture";
-import { predict } from "../lib/classifier";
+import { initialActivation, waitForRelease } from "../lib/activation";
+import { recognize } from "../lib/recognition";
 import { deletePhrase, loadPhrases } from "../lib/storage";
 import { prepareOffline } from "../lib/offline";
 import { FEATURE_VERSION, type Observation, type Phrase } from "../lib/types";
@@ -32,7 +31,6 @@ export default function Kumpas() {
     mounted = useRef(true),
     isSpeaking = useRef(false);
   const speechGeneration = useRef(0);
-  const steadyPose = useRef(emptyCapture());
   async function refresh() {
     try {
       const p = await loadPhrases();
@@ -73,7 +71,6 @@ export default function Kumpas() {
   }, []);
   useEffect(() => {
     if (draft) {
-      steadyPose.current = emptyCapture();
       activation.current = initialActivation();
       player.current.stop();
       speechGeneration.current++;
@@ -82,7 +79,6 @@ export default function Kumpas() {
     }
   }, [draft]);
   function stopSpeech() {
-    steadyPose.current = emptyCapture();
     speechGeneration.current++;
     player.current.stop();
     isSpeaking.current = false;
@@ -148,21 +144,8 @@ export default function Kumpas() {
 
   function observe(o: Observation) {
     if (isSpeaking.current || document.hidden) return;
-    const result = o ? predict(o.features, o.hand, phrases) : null;
     const now = performance.now();
-    steadyPose.current = collectFrame(
-      steadyPose.current,
-      result && o ? o.features : null,
-      now,
-    );
-    const settled = steadyPose.current.samples.length > 0;
-    const next = advance(
-      activation.current,
-      activation.current.phase === "waiting" || settled
-        ? (result?.id ?? null)
-        : null,
-      now,
-    );
+    const next = recognize(activation.current, o, phrases, now);
     activation.current = next.state;
     setProgress(next.progress);
     if (next.fire && soundEnabled) {
@@ -171,7 +154,9 @@ export default function Kumpas() {
       return;
     }
     if (next.state.phase === "waiting") {
-      setStatus("Relax your hand before the next phrase.");
+      setStatus(
+        "Lower your hand out of view briefly, then show your gesture again.",
+      );
       return;
     }
     if (next.state.phase === "holding") {
@@ -182,13 +167,21 @@ export default function Kumpas() {
           : "Tap a phrase once to enable sound.",
       );
     } else {
-      setStatus(
-        o
-          ? phrases.some((p) => p.featureVersion !== FEATURE_VERSION)
-            ? "Reteach your saved gestures in Set up phrases. Recordings are preserved."
-            : "No phrase recognized. Try your enrolled pose."
-          : "Show one hand to communicate.",
-      );
+      const feedback = {
+        "no-hand": "Keep one whole hand inside the camera view.",
+        "no-phrases": "Teach your first phrase in Set up phrases.",
+        reteach:
+          "Reteach your saved gestures in Set up phrases. Recordings are preserved.",
+        "wrong-hand": `Use your saved ${[...new Set(phrases.filter((p) => p.featureVersion === FEATURE_VERSION).map((p) => p.hand.toLowerCase()))].join(" or ")} hand.`,
+        "different-pose":
+          "Match your taught finger shape and palm angle. If it still won’t match, choose Edit & reteach.",
+        ambiguous:
+          "This pose is too similar to another phrase. Teach more distinct finger shapes.",
+        "relaxed-pose":
+          "This looks like your relaxed check pose. Show your taught gesture instead.",
+        matched: "Pose found. Keep holding…",
+      };
+      setStatus(feedback[next.reason]);
       setActive(null);
     }
   }

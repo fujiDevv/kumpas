@@ -91,6 +91,7 @@ export function Enrollment({
       captureState.current = emptyCapture();
       positiveState.current = emptyCapture();
       negativeState.current = emptyCapture();
+
       return;
     }
     const now = performance.now(),
@@ -187,7 +188,7 @@ export function Enrollment({
         if (now - testSince.current >= 700) {
           setTested(true);
           setMessage(
-            "Pose recognized. Now hold a different relaxed hand pose in view. Do not remove your hand.",
+            "Open or curl your fingers into a different shape. Keep your hand in view and hold still.",
           );
         }
       } else {
@@ -208,11 +209,17 @@ export function Enrollment({
           : null,
         now,
       );
+
       if (negativeState.current.samples.length >= 8) {
         if (
-          !negativesPreserveGesture(candidate, negativeState.current.samples)
+          !negativesPreserveGesture(
+            candidate,
+            negativeState.current.samples,
+            positiveState.current.samples,
+          )
         ) {
           negativeState.current = emptyCapture();
+
           setMessage(
             "That relaxed pose is too close to your gesture. Try a clearly different finger shape for this check.",
           );
@@ -223,16 +230,24 @@ export function Enrollment({
           negatives: negativeState.current.samples,
         });
         setNeutral(true);
+        setMessage("Both checks passed. Save your phrase below.");
+      } else if (!o) {
         setMessage(
-          "Ready to save. Your pose and a visible non-matching pose passed the checks.",
+          `Bring your whole ${hand.toLowerCase()} hand back into view. Keep it visible for this check.`,
         );
-      } else if (o && match) {
+      } else if (o.hand !== hand) {
         setMessage(
-          "That still matches a saved phrase. Hold a different relaxed hand pose to test rejection.",
+          `Use your ${hand.toLowerCase()} hand, the same hand you taught the gesture with.`,
+        );
+      } else if (match) {
+        setMessage(
+          "That shape still matches a phrase. Change which fingers are open or curled, then hold still.",
         );
       } else {
         setMessage(
-          "Hold a different relaxed pose with the same hand in view. Movement restarts this check.",
+          negativeState.current.samples.length
+            ? "Good — keep holding until the check finishes."
+            : "Open or curl your fingers into a different shape. Keep your hand in view and hold still.",
         );
       }
     }
@@ -275,6 +290,7 @@ export function Enrollment({
     setCandidate(null);
     setTested(false);
     setNeutral(false);
+
     testSince.current = 0;
     positiveState.current = emptyCapture();
     negativeState.current = emptyCapture();
@@ -531,10 +547,19 @@ export function Enrollment({
                   ? `Collecting ${count}/8 examples`
                   : attempt < 3
                     ? `Attempt ${attempt + 1} of 3`
-                    : "Fresh test"}
+                    : neutral
+                      ? "Checks complete"
+                      : tested
+                        ? "Pose recognized"
+                        : "Fresh test"}
               </p>
             </div>
             <p className="instruction" role="status">
+              {candidate && tested && (
+                <strong className="check-label">
+                  {neutral ? "Check complete" : "Final check"}
+                </strong>
+              )}
               {message}
             </p>
             {attempt < 3 ? (
