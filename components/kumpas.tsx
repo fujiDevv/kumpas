@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera } from "./camera";
 import { Enrollment } from "./enrollment";
+import { GesturePreview } from "./gesture-preview";
 import { PhrasePlayer } from "../lib/audio";
 import { initialActivation, waitForRelease } from "../lib/activation";
 import { recognize } from "../lib/recognition";
@@ -301,6 +302,7 @@ export default function Kumpas() {
               {phrases.map((p, i) => (
                 <article key={p.id} className="saved-phrase">
                   <span className="phrase-number">0{i + 1}</span>
+                  <GesturePreview phrase={p} />
                   <div>
                     <h2>{p.text}</h2>
                     <p>
@@ -309,6 +311,12 @@ export default function Kumpas() {
                       {p.featureVersion !== FEATURE_VERSION &&
                         " · Reteach required"}
                     </p>
+                    {p.featureVersion === FEATURE_VERSION && (
+                      <p>
+                        Copy this finger shape with your {p.hand.toLowerCase()}{" "}
+                        hand. Keep the palm angle you taught, then hold briefly.
+                      </p>
+                    )}
                   </div>
                   <div className="phrase-actions">
                     <button
@@ -445,19 +453,27 @@ export default function Kumpas() {
                 {phrases.length > 0 ? (
                   <>
                     <p className="manual-label">
-                      You can also tap to speak
+                      Copy a saved hand shape, or tap to speak
                       {!soundEnabled ? " · tap once to enable sound" : ""}
                     </p>
                     <div className="manual-phrases">
-                      {phrases.map((p, i) => (
+                      {phrases.map((p) => (
                         <button
                           key={p.id}
                           className={active === p.id ? "selected" : ""}
                           onClick={() => void playPhrase(p)}
                         >
-                          <span>{String(i + 1).padStart(2, "0")}</span>
-                          {p.text}
-                          <span aria-hidden="true">↗</span>
+                          <GesturePreview phrase={p} />
+                          <span className="phrase-button-copy">
+                            <strong>{p.text}</strong>
+                            <small>{p.hand} hand · hold this shape</small>
+                          </span>
+                          <span
+                            className="phrase-button-arrow"
+                            aria-hidden="true"
+                          >
+                            ↗
+                          </span>
                         </button>
                       ))}
                     </div>

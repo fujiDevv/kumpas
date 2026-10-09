@@ -465,14 +465,42 @@ main {
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
-.manual-phrases button span:first-child {
-  font:
-    11px ui-monospace,
-    monospace;
-  color: var(--muted);
+.gesture-preview {
+  display: block;
+  width: 80px;
+  height: 80px;
   flex-shrink: 0;
+  border: 1px solid #ecc9b5;
+  border-radius: 8px;
+  background: #fff7f0;
 }
-.manual-phrases button span:last-child {
+.gesture-preview.unavailable {
+  display: grid;
+  place-content: center;
+  color: var(--muted);
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.manual-phrases .gesture-preview {
+  width: 64px;
+  height: 64px;
+}
+.phrase-button-copy {
+  min-width: 0;
+  flex: 1;
+}
+.phrase-button-copy strong {
+  display: block;
+  font-weight: 500;
+}
+.phrase-button-copy small {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.manual-phrases .phrase-button-arrow {
   margin-left: auto;
   color: var(--muted);
   flex-shrink: 0;
@@ -867,13 +895,13 @@ main {
     min-height: 140px;
   }
   .manual-phrases {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
   .manual-phrases button {
     align-items: flex-start;
     gap: 10px;
   }
-  .manual-phrases button span:last-child {
+  .manual-phrases .phrase-button-arrow {
     display: none;
   }
   .phrase-actions {

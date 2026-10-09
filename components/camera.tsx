@@ -2,29 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { startVision, type CameraSession } from "../lib/vision";
 import type { Observation } from "../lib/types";
-const connections = [
-  [0, 1],
-  [1, 2],
-  [2, 3],
-  [3, 4],
-  [0, 5],
-  [5, 6],
-  [6, 7],
-  [7, 8],
-  [5, 9],
-  [9, 10],
-  [10, 11],
-  [11, 12],
-  [9, 13],
-  [13, 14],
-  [14, 15],
-  [15, 16],
-  [13, 17],
-  [0, 17],
-  [17, 18],
-  [18, 19],
-  [19, 20],
-];
+import { handConnections } from "../lib/hand-connections";
 export function Camera({
   onObservation,
   onError,
@@ -65,7 +43,7 @@ export function Camera({
             ctx.strokeStyle = "#f4ad79";
             ctx.fillStyle = "#fff3dc";
             ctx.lineWidth = 3;
-            for (const [a, b] of connections) {
+            for (const [a, b] of handConnections) {
               ctx.beginPath();
               ctx.moveTo(o.points[a].x * cv.width, o.points[a].y * cv.height);
               ctx.lineTo(o.points[b].x * cv.width, o.points[b].y * cv.height);
