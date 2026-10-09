@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera } from "./camera";
 import { PhrasePlayer, recordVoice } from "../lib/audio";
-import { calibrate, overlaps, predict } from "../lib/classifier";
+import { calibrate, overlaps, predict, MIN_MARGIN } from "../lib/classifier";
 import {
   FEATURE_VERSION,
   type Example,
@@ -10,7 +10,7 @@ import {
   type Observation,
   type Phrase,
 } from "../lib/types";
-import { distance } from "../lib/features";
+import { collectFrame, emptyCapture } from "../lib/capture";
 import { savePhrase } from "../lib/storage";
 
 export function Enrollment({
@@ -49,13 +49,12 @@ export function Enrollment({
   const samples = useRef<Example[]>([]),
     captureRef = useRef(false),
     attemptRef = useRef(0),
-    lastSample = useRef(0),
     started = useRef(0),
-    lastFeatures = useRef<number[] | null>(null);
+    captureState = useRef(emptyCapture()),
+    negativeState = useRef(emptyCapture());
   const released = useRef(true),
     releaseSince = useRef(0),
     testSince = useRef(0),
-    neutralSince = useRef(0),
     lastObs = useRef(0);
   useEffect(() => {
     mounted.current = true;
@@ -74,7 +73,7 @@ export function Enrollment({
     hand,
     examples: [...samples.current],
     maxDistance: calibrate(samples.current),
-    minMargin: 0.035,
+    minMargin: MIN_MARGIN,
     featureVersion: FEATURE_VERSION,
     createdAt: existing?.createdAt ?? Date.now(),
     updatedAt: Date.now(),
@@ -101,31 +100,29 @@ export function Enrollment({
         );
         return;
       }
-      if (!o || o.hand !== hand) {
-        lastFeatures.current = null;
-        setMessage(`Show only your ${hand.toLowerCase()} hand.`);
-        return;
-      }
-      if (
-        lastFeatures.current &&
-        distance(lastFeatures.current, o.features) > 0.09
-      ) {
-        lastFeatures.current = o.features;
-        setMessage("Keep your pose steady for a moment.");
-        return;
-      }
-      lastFeatures.current = o.features;
-      if (now - lastSample.current < 150) return;
-      lastSample.current = now;
-      samples.current.push({
-        features: o.features,
-        session: attemptRef.current,
-      });
-      const n = samples.current.filter(
-        (e) => e.session === attemptRef.current,
-      ).length;
+      captureState.current = collectFrame(
+        captureState.current,
+        o?.hand === hand ? o.features : null,
+        now,
+      );
+      const n = captureState.current.samples.length;
       setCount(n);
+      setMessage(
+        !o
+          ? `Show one whole ${hand.toLowerCase()} hand clearly in view.`
+          : o.hand !== hand
+            ? `The camera detects ${o.hand.toLowerCase()}. Choose that hand above or use your ${hand.toLowerCase()} hand.`
+            : n
+              ? `Keep this same pose steady: ${n}/8 examples.`
+              : "Keep the same pose steady. Movement restarts this attempt.",
+      );
       if (n >= 8) {
+        samples.current.push(
+          ...captureState.current.samples.map((features) => ({
+            features,
+            session: attemptRef.current,
+          })),
+        );
         captureRef.current = false;
         setCapture(false);
         attemptRef.current++;
@@ -168,9 +165,8 @@ export function Enrollment({
         if (now - testSince.current >= 700) {
           setTested(true);
           setMessage(
-            "Pose recognized. Now try a different, neutral pose or remove your hand.",
+            "Pose recognized. Now hold a different relaxed hand pose in view. Do not remove your hand.",
           );
-          neutralSince.current = 0;
         }
       } else {
         testSince.current = 0;
@@ -180,15 +176,30 @@ export function Enrollment({
       const match = o
         ? predict(o.features, o.hand, [candidate, ...others])
         : null;
-      if (!match) {
-        if (!neutralSince.current || gap) neutralSince.current = now;
-        if (now - neutralSince.current >= 600) {
-          setNeutral(true);
-          setMessage(
-            "Ready to save. Your pose passed a fresh recognition and release check.",
-          );
-        }
-      } else neutralSince.current = 0;
+      // A missing hand proves release, but cannot test unknown-pose rejection.
+      negativeState.current = collectFrame(
+        negativeState.current,
+        o?.hand === hand && !match ? o.features : null,
+        now,
+      );
+      if (negativeState.current.samples.length >= 8) {
+        setCandidate({
+          ...candidate,
+          negatives: negativeState.current.samples,
+        });
+        setNeutral(true);
+        setMessage(
+          "Ready to save. Your pose and a visible non-matching pose passed the checks.",
+        );
+      } else if (o && match) {
+        setMessage(
+          "That still matches a saved phrase. Hold a different relaxed hand pose to test rejection.",
+        );
+      } else {
+        setMessage(
+          "Hold a different relaxed pose with the same hand in view. Movement restarts this check.",
+        );
+      }
     }
   }
   function cancelCapture() {
@@ -215,8 +226,7 @@ export function Enrollment({
     captureRef.current = true;
     setCapture(true);
     started.current = performance.now();
-    lastSample.current = 0;
-    lastFeatures.current = null;
+    captureState.current = emptyCapture();
     setCount(0);
     setMessage("Hold your chosen pose comfortably.");
   }
@@ -231,7 +241,8 @@ export function Enrollment({
     setTested(false);
     setNeutral(false);
     testSince.current = 0;
-    neutralSince.current = 0;
+    negativeState.current = emptyCapture();
+    captureState.current = emptyCapture();
     released.current = true;
     setError("");
     setMessage("Choose a comfortable, distinct pose and collect again.");
@@ -449,7 +460,8 @@ export function Enrollment({
             <h2>“{text}”</h2>
             <p>
               Choose one static pose you can repeat comfortably. We’ll collect
-              three separate attempts, then test a new one.
+              three steady attempts, test a fresh one, then check a different
+              visible hand pose. Keep all fingers in view.
             </p>
             <label htmlFor="hand">Which hand will you use?</label>
             <select

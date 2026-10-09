@@ -38,6 +38,26 @@ describe("hand geometry", () => {
   });
   it("rejects invalid feature distances", () => {
     expect(distance([1], [1])).toBe(Infinity);
-    expect(distance(Array(42).fill(NaN), Array(42).fill(0))).toBe(Infinity);
+    expect(distance(Array(63).fill(NaN), Array(63).fill(0))).toBe(Infinity);
   });
+});
+
+it("keeps a changed finger from being diluted by unchanged landmarks", () => {
+  const a = Array(63).fill(0),
+    b = [...a];
+  for (let i = 15; i < 27; i++) b[i] = 0.25;
+  expect(distance(a, b)).toBeCloseTo(0.25);
+});
+it("includes depth in the pose representation", () => {
+  const a = features(
+    hand.map((p) => ({ ...p, z: 0 })),
+    640,
+    480,
+  )!;
+  const b = features(
+    hand.map((p, i) => ({ ...p, z: i === 8 ? 0.08 : 0 })),
+    640,
+    480,
+  )!;
+  expect(distance(a, b)).toBeGreaterThan(0.05);
 });

@@ -1,4 +1,4 @@
-export const FEATURE_VERSION = 1;
+export const FEATURE_VERSION = 2;
 export type Hand = "Left" | "Right";
 export type Point = { x: number; y: number; z?: number };
 export type Example = { features: number[]; session: number };
@@ -10,6 +10,7 @@ export type Phrase = {
   durationMs: number;
   hand: Hand;
   examples: Example[];
+  negatives?: number[][];
   maxDistance: number;
   minMargin: number;
   featureVersion: number;

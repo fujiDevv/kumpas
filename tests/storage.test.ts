@@ -10,8 +10,22 @@ it("persists complete phrases, prevents a fourth, preserves an old phrase on fai
   expect((await loadPhrases()).length).toBe(3);
   await expect(savePhrase(phrase("d"))).rejects.toThrow();
   await expect(savePhrase({ ...a, text: "" })).rejects.toThrow();
+  await expect(savePhrase({ ...a, negatives: [] })).rejects.toThrow();
+  await expect(
+    savePhrase({
+      ...a,
+      examples: a.examples.map((e) => ({ ...e, features: Array(42).fill(0) })),
+    }),
+  ).rejects.toThrow();
   expect((await loadPhrases()).find((p) => p.id === "a")?.text).toBe("Tubig");
   await savePhrase({ ...a, text: "Pahingi ng tubig" });
+  await expect(savePhrase({ ...a, negatives: [] })).rejects.toThrow();
+  await expect(
+    savePhrase({
+      ...a,
+      examples: a.examples.map((e) => ({ ...e, features: Array(42).fill(0) })),
+    }),
+  ).rejects.toThrow();
   expect((await loadPhrases()).find((p) => p.id === "a")?.text).toBe(
     "Pahingi ng tubig",
   );

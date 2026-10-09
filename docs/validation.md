@@ -5,7 +5,7 @@ Checked October 9, 2026 on the local production preview at `http://127.0.0.1:417
 ## Passed checks
 
 - `pnpm typecheck`: no TypeScript errors.
-- `pnpm test`: 18 tests across five files pass. These cover feature normalization, unknown/ambiguous-class rejection, hold/release activation, audio resource cleanup, and atomic IndexedDB behavior. Classifier fixtures are synthetic; they do not measure personal gesture accuracy.
+- `pnpm test`: 28 tests across six files pass. These cover feature normalization, unknown/ambiguous-class rejection, hold/release activation, audio resource cleanup, and atomic IndexedDB behavior. Classifier fixtures are synthetic; they do not measure personal gesture accuracy.
 - `pnpm verify:assets`: local model/runtime hashes and byte sizes match the recorded manifest.
 - `pnpm build`: production Cloudflare/Vinext build completes and generates a versioned offline asset manifest.
 - Browser workspace and phrase-to-recording-step navigation work.
@@ -35,3 +35,11 @@ The camera is off in these screenshots. They show actual UI output, not fabricat
 - Gather intended-user feedback and inspect runtime network traffic before making broader privacy or accessibility claims.
 
 The prototype does not translate Filipino Sign Language. Passing these engineering checks does not establish clinical suitability or dependable emergency communication.
+
+## Recognition correction — October 10, 2026
+
+The updated implementation passes type checking, 28 automated tests, and the production build. Added regressions cover one-attempt false positives, overly broad stored tolerances, inconsistent enrollment being mislabeled as overlap, neutral-pose rejection, relative class ambiguity, depth differences, individual-finger changes, continuous capture, and drift/gap resets. Storage rejects incomplete negative checks and obsolete vector formats on save.
+
+Version 1 phrase records remain intact and manually playable; automatic recognition requires reteaching with version 2 features. The UI marks these phrases and explains the migration. The previous browser/offline checks above describe the earlier build; this recognition correction has not been validated against the user's live camera poses. No new background preview server was started for this correction.
+
+To accept the correction, reteach distinct poses such as open palm, fist, and index pointing; hold a visible non-matching pose during each enrollment check. Verify each intended pose, at least ten other poses/movements, and no hand. Record correct detections and false activations separately. If a pose cannot pass the fresh test, do not save it by relaxing the limits.

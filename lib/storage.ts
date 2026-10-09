@@ -41,7 +41,17 @@ export async function savePhrase(phrase: Phrase) {
     !phrase.text.trim() ||
     !(phrase.audio instanceof Blob) ||
     !phrase.audio.size ||
-    phrase.examples.length < 18 ||
+    phrase.examples.length < 24 ||
+    new Set(phrase.examples.map((e) => e.session)).size < 3 ||
+    phrase.examples.some(
+      (e) =>
+        e.features.length !== 63 || e.features.some((v) => !Number.isFinite(v)),
+    ) ||
+    !phrase.negatives ||
+    phrase.negatives.length < 8 ||
+    phrase.negatives.some(
+      (f) => f.length !== 63 || f.some((v) => !Number.isFinite(v)),
+    ) ||
     phrase.featureVersion !== FEATURE_VERSION
   )
     throw new Error(

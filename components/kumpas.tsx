@@ -4,10 +4,11 @@ import { Camera } from "./camera";
 import { Enrollment } from "./enrollment";
 import { PhrasePlayer } from "../lib/audio";
 import { advance, initialActivation, waitForRelease } from "../lib/activation";
+import { collectFrame, emptyCapture } from "../lib/capture";
 import { predict } from "../lib/classifier";
 import { deletePhrase, loadPhrases } from "../lib/storage";
 import { prepareOffline } from "../lib/offline";
-import type { Observation, Phrase } from "../lib/types";
+import { FEATURE_VERSION, type Observation, type Phrase } from "../lib/types";
 
 export default function Kumpas() {
   const [phrases, setPhrases] = useState<Phrase[]>([]),
@@ -31,6 +32,7 @@ export default function Kumpas() {
     mounted = useRef(true),
     isSpeaking = useRef(false);
   const speechGeneration = useRef(0);
+  const steadyPose = useRef(emptyCapture());
   async function refresh() {
     try {
       const p = await loadPhrases();
@@ -74,6 +76,7 @@ export default function Kumpas() {
     player.current.stop();
     isSpeaking.current = false;
     setSpeaking(false);
+    setActive(null);
     activation.current = waitForRelease(performance.now());
     setProgress(0);
     setStatus("Relax your hand before the next phrase.");
@@ -99,6 +102,7 @@ export default function Kumpas() {
         if (mounted.current && generation === speechGeneration.current) {
           isSpeaking.current = false;
           setSpeaking(false);
+          setActive(null);
           activation.current = waitForRelease(performance.now());
           setStatus("Relax your hand before the next phrase.");
         }
@@ -119,10 +123,19 @@ export default function Kumpas() {
   function observe(o: Observation) {
     if (isSpeaking.current) return;
     const result = o ? predict(o.features, o.hand, phrases) : null;
+    const now = performance.now();
+    steadyPose.current = collectFrame(
+      steadyPose.current,
+      result && o ? o.features : null,
+      now,
+    );
+    const settled = steadyPose.current.samples.length > 0;
     const next = advance(
       activation.current,
-      result?.id ?? null,
-      performance.now(),
+      activation.current.phase === "waiting" || settled
+        ? (result?.id ?? null)
+        : null,
+      now,
     );
     activation.current = next.state;
     setProgress(next.progress);
@@ -145,7 +158,9 @@ export default function Kumpas() {
     } else {
       setStatus(
         o
-          ? "No phrase recognized. Try your enrolled pose."
+          ? phrases.some((p) => p.featureVersion !== FEATURE_VERSION)
+            ? "Reteach your saved gestures in Set up phrases. Recordings are preserved."
+            : "No phrase recognized. Try your enrolled pose."
           : "Show one hand to communicate.",
       );
       setActive(null);
@@ -272,6 +287,8 @@ export default function Kumpas() {
                     <p>
                       {p.hand} hand · {(p.durationMs / 1000).toFixed(1)}s
                       recording · {p.examples.length} examples
+                      {p.featureVersion !== FEATURE_VERSION &&
+                        " · Reteach required"}
                     </p>
                   </div>
                   <div className="phrase-actions">
@@ -361,6 +378,13 @@ export default function Kumpas() {
                 </button>
               )}
             </div>
+            {phrases.some((p) => p.featureVersion !== FEATURE_VERSION) && (
+              <p className="instruction" role="status">
+                Recognition has been updated. Open Set up phrases and choose
+                Edit &amp; reteach for each saved phrase. Your voice recordings
+                are kept; manual buttons still work.
+              </p>
+            )}
             <div className="communication-layout">
               <Camera
                 key={`${mode}-${cameraEpoch}`}

@@ -77,7 +77,13 @@ export async function startVision(
       }
       if (data.type !== "result") return;
       const points = data.points as Point[][];
-      if (points.length !== 1) {
+      if (
+        points.length !== 1 ||
+        performance.now() - data.timestamp > 350 ||
+        points[0].some(
+          (p) => p.x < 0.01 || p.x > 0.99 || p.y < 0.01 || p.y > 0.99,
+        )
+      ) {
         onObservation(null);
         return;
       }

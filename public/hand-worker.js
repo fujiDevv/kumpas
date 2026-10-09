@@ -13,9 +13,9 @@ self.onmessage = async ({ data }) => {
         },
         runningMode: "VIDEO",
         numHands: 2,
-        minHandDetectionConfidence: 0.65,
-        minHandPresenceConfidence: 0.65,
-        minTrackingConfidence: 0.6,
+        minHandDetectionConfidence: 0.75,
+        minHandPresenceConfidence: 0.75,
+        minTrackingConfidence: 0.75,
       });
       self.postMessage({ type: "ready" });
     } else if (data.type === "check") {
@@ -39,7 +39,7 @@ self.onmessage = async ({ data }) => {
           points: result.landmarks,
           handedness: result.handedness,
           ms: performance.now() - start,
-          session: data.session,
+          timestamp: data.timestamp,
         });
       } finally {
         data.frame.close();

@@ -68,7 +68,7 @@ For live code changes, use `pnpm dev`. Use the production build and preview for 
 4. Choose the hand that will be used and start the camera.
 5. Collect a comfortable, distinct static pose in three separate attempts. Move the hand out of view between attempts.
 6. Remove the hand, then repeat the pose for the fresh recognition test.
-7. Try a neutral pose or remove the hand for the release check, then save.
+7. Hold a different relaxed pose with the same hand visible for the rejection check, then save. Removing your hand does not complete this check.
 
 ### Communicate
 
@@ -119,7 +119,7 @@ pnpm verify:assets
 pnpm build
 ```
 
-There are **18 automated tests** covering feature normalization, class rejection, continuous holding/release, audio cleanup, and atomic local storage behavior. Type checking and the production build were run during development. Browser checks verified the workspace, phrase/recording-step navigation, desktop and 390-pixel layout, and offline asset preparation. With the preview server stopped, the cached app reloaded and the actual cached model initialized and processed a blank frame. This verifies runtime operation, not pose accuracy.
+There are **28 automated tests** covering feature normalization, class rejection, continuous holding/release, audio cleanup, and atomic local storage behavior. Type checking and the production build were run during development. Browser checks verified the workspace, phrase/recording-step navigation, desktop and 390-pixel layout, and offline asset preparation. With the preview server stopped, the cached app reloaded and the actual cached model initialized and processed a blank frame. This verifies runtime operation, not pose accuracy.
 
 These checks do not establish personal-gesture accuracy or intended-user suitability. A complete three-phrase enrollment, microphone recording, speaker playback, and live recognition trial still require hands-on acceptance on the demo device. See [validation notes](docs/validation.md) for the precise evidence and outstanding checks.
 
@@ -156,3 +156,11 @@ docs/        Model manifest, validation, demo script, UI decisions
 - Reused starter assets: the existing Vinext/React/Cloudflare scaffold. The orange spark logo was copied unchanged from **SafeShare** in `../hackathon2026/`, as requested; it was previously generated with **OpenAI ImageGen**.
 - UI/UX references: the locally provided **Foglamp** and **Craft** projects in `../ui-design-inspo/`. Their neutral surfaces, app navigation, control depth, and spacing informed original Kumpas styles; reference application components were not copied.
 - Application implementation and documentation were created during October 9, 2026 with **OpenAI Codex**. There is no runtime dependency on Codex or an OpenAI API.
+
+## Recognition update — October 10, 2026
+
+Saved gestures using the earlier feature format must be retaught with **Set up phrases → Edit & reteach**. Text and voice recordings are preserved, and manual phrase playback remains available. Do not delete your phrases to update them.
+
+The matcher now uses wrist-centered 3D landmarks and checks each finger separately. Enrollment collects a continuous, steady pose in each of three independent attempts; movement, a missing hand, and frame gaps restart the current attempt. Calibration rejects inconsistent attempts instead of widening the acceptance range. Matching requires two attempts to support the result, absolute and relative separation from competing phrases, and distance from a recorded non-matching pose. Communication also requires settling before the activation hold.
+
+After serving this build, refresh the app and run **Prepare offline use** again to update the cached app and worker. The thresholds are conservative development settings, not measured accuracy guarantees. Real-pose acceptance and false-trigger measurements remain pending.
