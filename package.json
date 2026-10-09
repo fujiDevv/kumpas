@@ -33,7 +33,7 @@
     "dev": "vite dev",
     "build": "pnpm verify:assets && vite build && node scripts/offline-manifest.mjs",
     "start": "vite preview",
-    "deploy": "vinext-cloudflare deploy --warm-cache",
+    "deploy": "vinext-cloudflare deploy",
     "deploy:response-store": "cf deploy --prebuilt --mode production --worker kumpas-response-store",
     "prepare:model": "node scripts/prepare-model.mjs",
     "verify:assets": "node scripts/verify-assets.mjs",
