@@ -5,7 +5,7 @@ Checked October 9, 2026 on the local production preview at `http://127.0.0.1:417
 ## Passed checks
 
 - `pnpm typecheck`: no TypeScript errors.
-- `pnpm test`: 28 tests across six files pass. These cover feature normalization, unknown/ambiguous-class rejection, hold/release activation, audio resource cleanup, and atomic IndexedDB behavior. Classifier fixtures are synthetic; they do not measure personal gesture accuracy.
+- `pnpm test`: 31 tests across six files pass. These cover feature normalization, unknown/ambiguous-class rejection, hold/release activation, audio resource cleanup, and atomic IndexedDB behavior. Classifier fixtures are synthetic; they do not measure personal gesture accuracy.
 - `pnpm verify:assets`: local model/runtime hashes and byte sizes match the recorded manifest.
 - `pnpm build`: production Cloudflare/Vinext build completes and generates a versioned offline asset manifest.
 - Browser workspace and phrase-to-recording-step navigation work.
@@ -43,3 +43,9 @@ The updated implementation passes type checking, 28 automated tests, and the pro
 Version 1 phrase records remain intact and manually playable; automatic recognition requires reteaching with version 2 features. The UI marks these phrases and explains the migration. The previous browser/offline checks above describe the earlier build; this recognition correction has not been validated against the user's live camera poses. No new background preview server was started for this correction.
 
 To accept the correction, reteach distinct poses such as open palm, fist, and index pointing; hold a visible non-matching pose during each enrollment check. Verify each intended pose, at least ten other poses/movements, and no hand. Record correct detections and false activations separately. If a pose cannot pass the fresh test, do not save it by relaxing the limits.
+
+## Second-phrase overlap correction — October 10, 2026
+
+The overlap check previously compared leave-session-out distances with runtime distances, incorrectly rejecting some poses that communication could distinguish. It now uses the runtime classifier on both classes and requires conflicts in at least half of usable examples in two separate attempts. The existing live fresh-pose check remains required. Collision messages identify the conflicting phrase.
+
+Type checking and all 31 automated tests pass. Added cases cover distinguishable second phrases with attempt variation, a conflict isolated to one attempt, and persistent collisions in both enrollment orders. This correction keeps feature version 2; existing version 2 gestures do not need reteaching. Real-camera confirmation of the user's second pose remains pending.

@@ -136,9 +136,12 @@ export function Enrollment({
         if (attemptRef.current === 3) {
           try {
             const p = makeCandidate();
-            if (overlaps(p, others)) {
+            const conflictingPhrase = others.find((saved) =>
+              overlaps(p, [saved]),
+            );
+            if (conflictingPhrase) {
               setError(
-                "This pose is too similar to a saved phrase. Choose a more distinct pose and collect again.",
+                `This pose repeatedly conflicts with “${conflictingPhrase.text}”. Change which fingers are extended or curled, then collect again. Moving the same pose to another position does not create a different gesture.`,
               );
               return;
             }

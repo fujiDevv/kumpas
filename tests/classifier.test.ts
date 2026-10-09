@@ -70,3 +70,36 @@ describe("strict unknown rejection", () => {
     expect(predict(Array(63).fill(0.153), "Right", [a, b])).toBeNull();
   });
 });
+
+describe("multiple-phrase enrollment", () => {
+  it("allows a second pose when communication can separate both despite attempt variation", () => {
+    const a = { ...phrase("a"), maxDistance: 0.18, minMargin: 0.02 };
+    a.examples = a.examples.map((e) => ({
+      ...e,
+      features: Array(63).fill([0, 0.06, 0.08][e.session]),
+    }));
+    const b = { ...phrase("b", 0.17), maxDistance: 0.18, minMargin: 0.02 };
+    // Leave-session-out distance for a's third attempt was 0.08, causing the old false overlap.
+    expect(overlaps(b, [a])).toBe(false);
+    for (const p of [a, b])
+      for (const e of p.examples)
+        expect(predict(e.features, p.hand, [a, b])?.id).toBe(p.id);
+  });
+  it("does not block enrollment for a conflict limited to one unusual attempt", () => {
+    const a = { ...phrase("a"), maxDistance: 0.18, minMargin: 0.02 };
+    a.examples = a.examples.map((e) => ({
+      ...e,
+      features: Array(63).fill(e.session === 2 ? 0.1 : 0),
+    }));
+    const b = { ...phrase("b", 0.13), maxDistance: 0.18, minMargin: 0.02 };
+    expect(overlaps(a, [b])).toBe(false);
+    expect(predict(Array(63).fill(0), "Right", [a, b])?.id).toBe("a");
+    expect(predict(Array(63).fill(0.135), "Right", [a, b])?.id).toBe("b");
+  });
+  it("still blocks persistent collisions in both enrollment orders", () => {
+    const a = phrase("a"),
+      b = phrase("b", 0.005);
+    expect(overlaps(a, [b])).toBe(true);
+    expect(overlaps(b, [a])).toBe(true);
+  });
+});

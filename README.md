@@ -119,7 +119,7 @@ pnpm verify:assets
 pnpm build
 ```
 
-There are **28 automated tests** covering feature normalization, class rejection, continuous holding/release, audio cleanup, and atomic local storage behavior. Type checking and the production build were run during development. Browser checks verified the workspace, phrase/recording-step navigation, desktop and 390-pixel layout, and offline asset preparation. With the preview server stopped, the cached app reloaded and the actual cached model initialized and processed a blank frame. This verifies runtime operation, not pose accuracy.
+There are **31 automated tests** covering feature normalization, class rejection, continuous holding/release, audio cleanup, and atomic local storage behavior. Type checking and the production build were run during development. Browser checks verified the workspace, phrase/recording-step navigation, desktop and 390-pixel layout, and offline asset preparation. With the preview server stopped, the cached app reloaded and the actual cached model initialized and processed a blank frame. This verifies runtime operation, not pose accuracy.
 
 These checks do not establish personal-gesture accuracy or intended-user suitability. A complete three-phrase enrollment, microphone recording, speaker playback, and live recognition trial still require hands-on acceptance on the demo device. See [validation notes](docs/validation.md) for the precise evidence and outstanding checks.
 
@@ -164,3 +164,5 @@ Saved gestures using the earlier feature format must be retaught with **Set up p
 The matcher now uses wrist-centered 3D landmarks and checks each finger separately. Enrollment collects a continuous, steady pose in each of three independent attempts; movement, a missing hand, and frame gaps restart the current attempt. Calibration rejects inconsistent attempts instead of widening the acceptance range. Matching requires two attempts to support the result, absolute and relative separation from competing phrases, and distance from a recorded non-matching pose. Communication also requires settling before the activation hold.
 
 After serving this build, refresh the app and run **Prepare offline use** again to update the cached app and worker. The thresholds are conservative development settings, not measured accuracy guarantees. Real-pose acceptance and false-trigger measurements remain pending.
+
+The overlap check uses the same matcher as communication and requires persistent conflicts across at least two capture attempts. One unusual attempt no longer blocks an otherwise distinguishable second phrase. Fresh live recognition and non-matching-pose checks are still required.

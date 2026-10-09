@@ -67,25 +67,28 @@ export function predict(
   if (negativeDistance <= best.d + 0.015) return null;
   return { id: best.phrase.id, distance: best.d, margin };
 }
-/** Test separation without mistaking poor self-recognition for a class collision. */
+/** Use the same classifier as communication. A collision must persist across attempts. */
 export function overlaps(candidate: Phrase, others: Phrase[]): boolean {
-  return others
-    .filter(
-      (p) => p.hand === candidate.hand && p.featureVersion === FEATURE_VERSION,
-    )
-    .some((p) => {
-      const ambiguous = (a: Phrase, b: Phrase) =>
-        a.examples.filter((e) => {
-          const own = classDistance(
-            e.features,
-            a.examples.filter((x) => x.session !== e.session),
-          );
-          const other = classDistance(e.features, b.examples);
-          return (
-            other <= Math.min(b.maxDistance, MAX_DISTANCE) &&
-            (other - own < MIN_MARGIN || own > other * 0.8)
-          );
-        }).length / a.examples.length;
-      return ambiguous(candidate, p) > 0.1 || ambiguous(p, candidate) > 0.1;
+  const compatible = others.filter(
+    (p) => p.hand === candidate.hand && p.featureVersion === FEATURE_VERSION,
+  );
+  const conflicts = (a: Phrase, b: Phrase) => {
+    const sessions = [...new Set(a.examples.map((e) => e.session))];
+    const conflictingSessions = sessions.filter((session) => {
+      const examples = a.examples.filter((e) => e.session === session);
+      const usable = examples.filter(
+        (e) => predict(e.features, a.hand, [a])?.id === a.id,
+      );
+      if (!usable.length) return false;
+      const ambiguous = usable.filter(
+        (e) => predict(e.features, a.hand, [a, b])?.id !== a.id,
+      );
+      return ambiguous.length / usable.length >= 0.5;
     });
+    // One unusual attempt should lead to the fresh live test, not a blanket rejection.
+    return conflictingSessions.length >= 2;
+  };
+  return compatible.some(
+    (p) => conflicts(candidate, p) || conflicts(p, candidate),
+  );
 }
