@@ -8,12 +8,42 @@ export class PhrasePlayer {
       this.audio.pause();
       this.audio.onended = null;
       this.audio.onerror = null;
-      this.audio = null;
+      this.audio.src = "";
     }
     if (this.url) {
       URL.revokeObjectURL(this.url);
       this.url = null;
     }
+  }
+  // Call directly from a click, before camera startup or any other await.
+  async unlock() {
+    // A short, silent PCM WAV primes playback without speaking a saved phrase.
+    const bytes = new ArrayBuffer(204);
+    const view = new DataView(bytes);
+    const write = (offset: number, value: string) => {
+      for (let i = 0; i < value.length; i++)
+        view.setUint8(offset + i, value.charCodeAt(i));
+    };
+    write(0, "RIFF");
+    view.setUint32(4, 196, true);
+    write(8, "WAVEfmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, 8000, true);
+    view.setUint32(28, 16000, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    write(36, "data");
+    view.setUint32(40, 160, true);
+    const pending = this.play(
+      new Blob([bytes], { type: "audio/wav" }),
+      () => {},
+    );
+    const generation = this.generation;
+    const started = await pending;
+    if (generation === this.generation) this.stop();
+    return started;
   }
   async play(
     blob: Blob,
@@ -25,7 +55,9 @@ export class PhrasePlayer {
     let completed = false;
     let failure: Error | null = null;
     this.url = URL.createObjectURL(blob);
-    this.audio = new Audio(this.url);
+    // Autoplay permission can belong to the element, so reuse it across clips.
+    this.audio ??= new Audio();
+    this.audio.src = this.url;
     this.audio.onended = () => {
       if (generation !== this.generation) return;
       completed = true;

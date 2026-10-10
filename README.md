@@ -42,7 +42,7 @@ You can save **up to three phrases**, each with a voice recording of **up to eig
 
 ### 2. Communicate
 
-1. Open **Communicate** and tap a phrase once to enable audio playback.
+1. Open **Communicate**. Starting the camera also enables audio playback; you do not need to tap a phrase first.
 2. Start the camera and briefly hold a saved pose.
 3. Kumpas displays the phrase and plays its recording once.
 4. Relax or remove your hand before trying again.

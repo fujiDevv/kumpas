@@ -97,6 +97,23 @@ export default function Kumpas() {
     setMode(next);
     setError("");
   }
+  async function enableCameraSound() {
+    stopSpeech();
+    const generation = speechGeneration.current;
+    setSoundEnabled(false);
+    activation.current = initialActivation();
+    setStatus("Ready when you are.");
+    try {
+      const enabled = await player.current.unlock();
+      if (!mounted.current || generation !== speechGeneration.current) return;
+      setSoundEnabled(enabled);
+      if (enabled) setError("");
+    } catch {
+      if (!mounted.current || generation !== speechGeneration.current) return;
+      setSoundEnabled(false);
+      setError("Sound could not be enabled. Tap a phrase to try again.");
+    }
+  }
   async function playPhrase(p: Phrase) {
     const generation = ++speechGeneration.current;
     activation.current = waitForRelease(performance.now());
@@ -110,6 +127,7 @@ export default function Kumpas() {
       isSpeaking.current = false;
       setSpeaking(false);
       setActive(null);
+      setSoundEnabled(false);
       setError(
         "Audio could not play. Check your speaker, then press a phrase button to enable sound.",
       );
@@ -417,6 +435,7 @@ export default function Kumpas() {
                 key={`${mode}-${cameraEpoch}`}
                 onObservation={observe}
                 onError={setError}
+                onStart={() => void enableCameraSound()}
               />
               <section
                 className="voice-panel"
@@ -454,7 +473,7 @@ export default function Kumpas() {
                   <>
                     <p className="manual-label">
                       Copy a saved hand shape, or tap to speak
-                      {!soundEnabled ? " · tap once to enable sound" : ""}
+                      {!soundEnabled ? " · start camera to enable sound" : ""}
                     </p>
                     <div className="manual-phrases">
                       {phrases.map((p) => (

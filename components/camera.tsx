@@ -7,10 +7,12 @@ export function Camera({
   onObservation,
   onError,
   onReady,
+  onStart,
 }: {
   onObservation: (o: Observation) => void;
   onError: (message: string) => void;
   onReady?: (ready: boolean) => void;
+  onStart?: () => void;
 }) {
   const video = useRef<HTMLVideoElement>(null),
     canvas = useRef<HTMLCanvasElement>(null);
@@ -146,7 +148,10 @@ export function Camera({
         </span>
         <button
           className={enabled ? "button subtle" : "button primary"}
-          onClick={() => setEnabled((v) => !v)}
+          onClick={() => {
+            if (!enabled) onStart?.();
+            setEnabled((v) => !v);
+          }}
         >
           {loading
             ? "Cancel startup"

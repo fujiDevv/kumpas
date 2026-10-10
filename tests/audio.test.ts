@@ -5,11 +5,12 @@ class FakeAudio {
   static blocked = false;
   onended: (() => void) | null = null;
   onerror: (() => void) | null = null;
+  src = "";
   pause = vi.fn();
   play = vi.fn(async () => {
     if (FakeAudio.blocked) throw new Error("Playback blocked");
   });
-  constructor(_url: string) {
+  constructor() {
     FakeAudio.instances.push(this);
   }
 }
@@ -35,7 +36,8 @@ it("stops old playback, revokes URLs, and suppresses stale completion", async ()
   stale?.();
   expect(old.pause).toHaveBeenCalled();
   expect(first).not.toHaveBeenCalled();
-  FakeAudio.instances[1].onended?.();
+  expect(FakeAudio.instances).toHaveLength(1);
+  FakeAudio.instances[0].onended?.();
   expect(second).toHaveBeenCalledOnce();
   expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
 });
@@ -83,5 +85,45 @@ it("suppresses late errors belonging to older playback", async () => {
   await p.play(new Blob(["b"]), vi.fn(), error);
   stale?.();
   expect(error).not.toHaveBeenCalled();
-  expect(FakeAudio.instances[1].pause).not.toHaveBeenCalled();
+  expect(FakeAudio.instances[0].pause).toHaveBeenCalledTimes(1);
+});
+
+it("unlocks synchronously and reuses the primed element for a new phrase", async () => {
+  const p = new PhrasePlayer();
+  const unlocking = p.unlock();
+  expect(FakeAudio.instances[0].play).toHaveBeenCalledOnce();
+  expect(await unlocking).toBe(true);
+  const ended = vi.fn();
+  await p.play(new Blob(["newly saved recording"]), ended);
+  expect(FakeAudio.instances).toHaveLength(1);
+  expect(FakeAudio.instances[0].play).toHaveBeenCalledTimes(2);
+  FakeAudio.instances[0].onended?.();
+  expect(ended).toHaveBeenCalledOnce();
+});
+
+it("allows retrying sound initialization after playback is blocked", async () => {
+  const p = new PhrasePlayer();
+  FakeAudio.blocked = true;
+  await expect(p.unlock()).rejects.toThrow("Playback blocked");
+  FakeAudio.blocked = false;
+  expect(await p.unlock()).toBe(true);
+  expect(FakeAudio.instances).toHaveLength(1);
+});
+
+it("does not stop a phrase that replaces pending sound initialization", async () => {
+  let resolve!: () => void;
+  const p = new PhrasePlayer();
+  const unlocking = p.unlock();
+  // The priming play promise is already resolved, but its continuation has not run.
+  FakeAudio.instances[0].play.mockImplementationOnce(
+    () =>
+      new Promise<void>((r) => {
+        resolve = r;
+      }),
+  );
+  const phrase = p.play(new Blob(["clip"]), vi.fn());
+  await unlocking;
+  expect(FakeAudio.instances[0].src).toBe("blob:example");
+  resolve();
+  expect(await phrase).toBe(true);
 });
