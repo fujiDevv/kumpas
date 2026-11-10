@@ -9,7 +9,7 @@
     "@vinext/cloudflare": "^1.0.1",
     "react": "latest",
     "react-dom": "latest",
-    "react-server-dom-webpack": "^19.3.0",
+    "react-server-dom-webpack": "^19.3.1",
     "vinext": "^1.0.1"
   },
   "devDependencies": {
